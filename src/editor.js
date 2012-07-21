@@ -153,6 +153,10 @@
       return returnValue;
     },
     
+    destroy: function() {
+      this.fire("destroy:composer");
+    },
+    
     /**
      * Prepare html parser logic
      *  - Observes for paste and drop

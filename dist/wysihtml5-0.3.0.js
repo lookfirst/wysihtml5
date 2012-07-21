@@ -8634,7 +8634,7 @@ wysihtml5.views.View = Base.extend(
  * Class that takes care that the value of the composer and the textarea is always in sync
  */
 (function(wysihtml5) {
-  var INTERVAL = 400;
+  var INTERVAL = 750;
   
   wysihtml5.views.Synchronizer = Base.extend(
     /** @scope wysihtml5.views.Synchronizer.prototype */ {
@@ -8643,6 +8643,10 @@ wysihtml5.views.View = Base.extend(
       this.editor   = editor;
       this.textarea = textarea;
       this.composer = composer;
+
+      this.firstTime = true;
+      this.dirty = false;
+      this.htmlCache = null;
 
       this._observe();
     },
@@ -8653,7 +8657,19 @@ wysihtml5.views.View = Base.extend(
      * @param {Boolean} shouldParseHtml Whether the html should be sanitized before inserting it into the textarea
      */
     fromComposerToTextarea: function(shouldParseHtml) {
-      this.textarea.setValue(wysihtml5.lang.string(this.composer.getValue()).trim(), shouldParseHtml);
+      var compHtml = wysihtml5.lang.string(this.composer.getValue()).trim();
+      if (this.firstTime) {
+        this.htmlCache = compHtml;
+        this.firstTime = false;
+      }
+      if (compHtml !== this.htmlCache) {
+        this.dirty = true;
+      	this.textarea.setValue(compHtml, shouldParseHtml);
+      	this.editor.fire("change:dirty", compHtml);
+      } else {
+        this.dirty = false;
+      	this.editor.fire("change:clean", compHtml);
+      }
     },
 
     /**
@@ -8753,10 +8769,8 @@ wysihtml5.views.Textarea = wysihtml5.views.View.extend(
     if (parse) {
       html = this.parent.parse(html);
     }
-    if (this.element.value !== html) {
-	    this.parent.fire('change:textarea');
-	    this.element.value = html;
-    }
+	this.element.value = html;
+	this.parent.fire('change:textarea', html);
   },
   
   hasPlaceholderSet: function() {
@@ -9530,6 +9544,10 @@ wysihtml5.views.Textarea = wysihtml5.views.View.extend(
         wysihtml5.quirks.redraw(htmlOrElement);
       }
       return returnValue;
+    },
+    
+    destroy: function() {
+      this.fire("destroy:composer");
     },
     
     /**

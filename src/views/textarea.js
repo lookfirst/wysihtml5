@@ -24,10 +24,8 @@ wysihtml5.views.Textarea = wysihtml5.views.View.extend(
     if (parse) {
       html = this.parent.parse(html);
     }
-    if (this.element.value !== html) {
-	    this.element.value = html;
-	    this.parent.fire('change:textarea');
-    }
+	this.element.value = html;
+	this.parent.fire('change:textarea', html);
   },
   
   hasPlaceholderSet: function() {
