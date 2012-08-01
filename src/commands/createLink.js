@@ -57,7 +57,7 @@
       isEmpty = textContent === "" || textContent === wysihtml5.INVISIBLE_SPACE;
       if (!hasElementChild && isEmpty) {
         dom.setTextContent(anchor, attributes.text || anchor.href);
-        whiteSpace = doc.createTextNode(" ");
+        whiteSpace = doc.createTextNode("");
         composer.selection.setAfter(anchor);
         composer.selection.insertNode(whiteSpace);
         elementToSetCaretAfter = whiteSpace;
