@@ -48,10 +48,12 @@
 
     show: function() {
       this.iframe.style.display = this._displayStyle || "";
-
-      // Firefox needs this, otherwise contentEditable becomes uneditable
-      this.disable();
-      this.enable();
+      
+      if (!this.textarea.element.disabled) {
+        // Firefox needs this, otherwise contentEditable becomes uneditable
+        this.disable();
+        this.enable();
+      }
     },
 
     hide: function() {
@@ -63,13 +65,13 @@
     },
 
     disable: function() {
+      this.parent.fire("disable:composer");
       this.element.removeAttribute("contentEditable");
-      this.base();
     },
 
     enable: function() {
+      this.parent.fire("enable:composer");
       this.element.setAttribute("contentEditable", "true");
-      this.base();
     },
 
     focus: function(setToEnd) {
@@ -165,7 +167,11 @@
         dom.addClass(this.element, name);
         dom.addClass(this.iframe, name);
       }
-
+      
+      if (this.textarea.element.disabled) {
+        this.disable();
+      }
+      
       // Simulate html5 placeholder attribute on contentEditable element
       var placeholderText = typeof(this.config.placeholder) === "string"
         ? this.config.placeholder
@@ -182,7 +188,8 @@
       this._initUndoManager();
 
       // Simulate html5 autofocus on contentEditable element
-      if (this.textarea.element.hasAttribute("autofocus") || document.querySelector(":focus") == this.textarea.element) {
+      // This doesn't work on IOS (5.1.1)
+      if ((this.textarea.element.hasAttribute("autofocus") || document.querySelector(":focus") == this.textarea.element) && !browser.isIos()) {
         setTimeout(function() { that.focus(true); }, 100);
       }
 

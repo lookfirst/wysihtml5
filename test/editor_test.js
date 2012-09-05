@@ -2,8 +2,9 @@ if (wysihtml5.browser.supported()) {
   module("wysihtml5.Editor", {
     setup: function() {
       wysihtml5.dom.insertCSS([
-        "#wysihtml5-test-textarea { width: 200px; height: 100px; margin-top: 5px; font-style: italic; border: 2px solid red; border-radius: 2px; }",
-        "#wysihtml5-test-textarea:focus { margin-top: 10px; }"
+        "#wysihtml5-test-textarea { width: 50%; height: 100px; margin-top: 5px; font-style: italic; border: 2px solid red; border-radius: 2px; }",
+        "#wysihtml5-test-textarea:focus { margin-top: 10px; }",
+        "#wysihtml5-test-textarea:disabled { margin-top: 20px; }"
       ]).into(document);
 
       this.textareaElement        = document.createElement("textarea");
@@ -40,7 +41,7 @@ if (wysihtml5.browser.supported()) {
   });
   
   asyncTest("Basic test", function() {
-    expect(16);
+    expect(18);
     
     var that = this;
     
@@ -56,7 +57,7 @@ if (wysihtml5.browser.supported()) {
       equal(editor.currentView.name, "composer", "Current view is 'composer'");
       
       // Make textarea visible for a short amount of time, in order to calculate dimensions properly
-      textareaElement.style.display = "";
+      textareaElement.style.display = "block";
       deepEqual(
         [iframeElement.offsetHeight,    iframeElement.offsetWidth],
         [textareaElement.offsetHeight,  textareaElement.offsetWidth],
@@ -73,9 +74,11 @@ if (wysihtml5.browser.supported()) {
       equal(editor.textarea.element, textareaElement, "Textarea correctly available on editor instance");
       equal(editor.composer.element, composerElement, "contentEditable element available on editor instance");
       equal(wysihtml5.dom.getStyle("font-style").from(composerElement), "italic", "Correct font-style applied to editor element");
+      equal(wysihtml5.dom.getStyle("width").from(iframeElement), "50%", "Correct width applied to iframe")
+      equal(wysihtml5.dom.getStyle("height").from(iframeElement), "100px", "Correct height applied to iframe")
       
       if ("borderRadius" in document.createElement("div").style) {
-        expect(17);
+        expect(19);
         ok(wysihtml5.dom.getStyle("border-top-right-radius").from(iframeElement).indexOf("2px") !== -1, "border-radius correctly copied");
       }
       
@@ -124,7 +127,7 @@ if (wysihtml5.browser.supported()) {
     var editor = new wysihtml5.Editor(this.textareaElement);
     editor.observe("load", function() {
       // Make textarea visible for a short amount of time, in order to calculate dimensions properly
-      that.textareaElement.style.display = "";
+      that.textareaElement.style.display = "block";
       deepEqual(
         [that.getIframeElement().offsetWidth, that.getIframeElement().offsetHeight],
         [that.textareaElement.offsetWidth,    that.textareaElement.offsetHeight],
@@ -323,7 +326,7 @@ if (wysihtml5.browser.supported()) {
   
   
   asyncTest("Check public api", function() {
-    expect(14);
+    expect(13);
     
     var that = this;
     
@@ -360,7 +363,6 @@ if (wysihtml5.browser.supported()) {
       // Check disable/enable
       editor.disable();
       ok(!composerElement.getAttribute("contentEditable"), "When disabled the composer hasn't the contentEditable attribute");
-      equal(composerElement.getAttribute("disabled"), "disabled", "When disabled the composer has the disabled=\"disabled\" attribute");
       
       editor.enable();
       equal(composerElement.getAttribute("contentEditable"), "true", "After enabling the editor the contentEditable property is true");
@@ -522,6 +524,23 @@ if (wysihtml5.browser.supported()) {
       equal(textareaElement.style.display, "none", "Textarea is not visible");
       textareaElement.parentNode.removeChild(textareaElement);
       
+      start();
+    });
+  });
+  
+  asyncTest("Test disabled textarea", function() {
+    expect(2);
+    
+    this.textareaElement.disabled = true;
+    var that = this;
+    
+    var editor = new wysihtml5.Editor(this.textareaElement);
+    
+    editor.on("load", function() {
+      var iframeElement   = that.getIframeElement(),
+          composerElement = that.getComposerElement();
+      equal(wysihtml5.dom.getStyle("margin-top").from(iframeElement), "20px", "Correct :disabled styles applied");
+      ok(!composerElement.hasAttribute("contentEditable"), "Editor is unfocusable");
       start();
     });
   });

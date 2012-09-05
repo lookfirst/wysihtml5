@@ -25,6 +25,8 @@
  *    redo:composer
  *    beforecommand:composer
  *    aftercommand:composer
+ *    enable:composer
+ *    disable:composer
  *    change_view
  */
 (function(wysihtml5) {
@@ -167,13 +169,6 @@
           wysihtml5.quirks.cleanPastedHTML(that.composer.element);
           that.parse(that.composer.element);
         }, keepScrollPosition);
-      });
-      
-      this.observe("paste:textarea", function() {
-        var value   = this.textarea.getValue(),
-            newValue;
-        newValue = this.parse(value);
-        this.textarea.setValue(newValue);
       });
     }
   });
