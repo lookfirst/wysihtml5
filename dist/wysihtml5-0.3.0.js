@@ -4789,9 +4789,10 @@ wysihtml5.dom.parse = (function() {
     var oldNodeType     = oldNode.nodeType,
         oldChilds       = oldNode.childNodes,
         oldChildsLength = oldChilds.length,
-        newNode,
         method          = NODE_TYPE_MAPPING[oldNodeType],
-        i               = 0;
+        i               = 0,
+        newNode,
+        newChild;
     
     newNode = method && method(oldNode);
     
@@ -7482,7 +7483,7 @@ wysihtml5.commands.bold = {
       // Create list
       composer.commands.exec("formatBlock", "div", tempClassName);
       tempElement = doc.querySelector("." + tempClassName);
-      isEmpty = tempElement.innerHTML === "" || tempElement.innerHTML === wysihtml5.INVISIBLE_SPACE;
+      isEmpty = tempElement.innerHTML === "" || tempElement.innerHTML === wysihtml5.INVISIBLE_SPACE || tempElement.innerHTML === "<br>";
       composer.selection.executeAndRestoreSimple(function() {
         list = wysihtml5.dom.convertToList(tempElement, "ol");
       });
@@ -7531,7 +7532,7 @@ wysihtml5.commands.bold = {
       // Create list
       composer.commands.exec("formatBlock", "div", tempClassName);
       tempElement = doc.querySelector("." + tempClassName);
-      isEmpty = tempElement.innerHTML === "" || tempElement.innerHTML === wysihtml5.INVISIBLE_SPACE;
+      isEmpty = tempElement.innerHTML === "" || tempElement.innerHTML === wysihtml5.INVISIBLE_SPACE || tempElement.innerHTML === "<br>";
       composer.selection.executeAndRestoreSimple(function() {
         list = wysihtml5.dom.convertToList(tempElement, "ul");
       });
@@ -7991,10 +7992,12 @@ wysihtml5.views.View = Base.extend(
 
     show: function() {
       this.iframe.style.display = this._displayStyle || "";
-
-      // Firefox needs this, otherwise contentEditable becomes uneditable
-      this.disable();
-      this.enable();
+      
+      if (!this.textarea.element.disabled) {
+        // Firefox needs this, otherwise contentEditable becomes uneditable
+        this.disable();
+        this.enable();
+      }
     },
 
     hide: function() {
@@ -8006,13 +8009,13 @@ wysihtml5.views.View = Base.extend(
     },
 
     disable: function() {
+      this.parent.fire("disable:composer");
       this.element.removeAttribute("contentEditable");
-      this.base();
     },
 
     enable: function() {
+      this.parent.fire("enable:composer");
       this.element.setAttribute("contentEditable", "true");
-      this.base();
     },
 
     focus: function(setToEnd) {
@@ -8108,7 +8111,11 @@ wysihtml5.views.View = Base.extend(
         dom.addClass(this.element, name);
         dom.addClass(this.iframe, name);
       }
-
+      
+      if (this.textarea.element.disabled) {
+        this.disable();
+      }
+      
       // Simulate html5 placeholder attribute on contentEditable element
       var placeholderText = typeof(this.config.placeholder) === "string"
         ? this.config.placeholder
@@ -8125,7 +8132,8 @@ wysihtml5.views.View = Base.extend(
       this._initUndoManager();
 
       // Simulate html5 autofocus on contentEditable element
-      if (this.textarea.element.hasAttribute("autofocus") || document.querySelector(":focus") == this.textarea.element) {
+      // This doesn't work on IOS (5.1.1)
+      if ((this.textarea.element.hasAttribute("autofocus") || document.querySelector(":focus") == this.textarea.element) && !browser.isIos()) {
         setTimeout(function() { that.focus(true); }, 100);
       }
 
@@ -8320,7 +8328,6 @@ wysihtml5.views.View = Base.extend(
         wysihtml5.browser.isGecko ?
           "body.placeholder { color: graytext !important; }" : 
           "body.placeholder { color: #a9a9a9 !important; }",
-        "body[disabled]   { background-color: #eee !important; color: #999 !important; cursor: default !important; }",
         // Ensure that user see's broken images and can delete them
         "img:-moz-broken  { -moz-force-broken-image-icon: 1; height: 24px; width: 24px; }"
       ];
@@ -8376,9 +8383,13 @@ wysihtml5.views.View = Base.extend(
         originalActiveElement = doc.querySelector(":focus"),
         textareaElement       = this.textarea.element,
         hasPlaceholder        = textareaElement.hasAttribute("placeholder"),
-        originalPlaceholder   = hasPlaceholder && textareaElement.getAttribute("placeholder");
-    this.focusStylesHost      = this.focusStylesHost  || HOST_TEMPLATE.cloneNode(false);
-    this.blurStylesHost       = this.blurStylesHost   || HOST_TEMPLATE.cloneNode(false);
+        originalPlaceholder   = hasPlaceholder && textareaElement.getAttribute("placeholder"),
+        originalDisplayValue  = textareaElement.style.display,
+        originalDisabled      = textareaElement.disabled;
+    
+    this.focusStylesHost      = HOST_TEMPLATE.cloneNode(false);
+    this.blurStylesHost       = HOST_TEMPLATE.cloneNode(false);
+    this.disabledStylesHost   = HOST_TEMPLATE.cloneNode(false);
   
     // Remove placeholder before copying (as the placeholder has an affect on the computed style)
     if (hasPlaceholder) {
@@ -8388,72 +8399,76 @@ wysihtml5.views.View = Base.extend(
     if (textareaElement === originalActiveElement) {
       textareaElement.blur();
     }
-  
+    
+    // enable for copying styles
+    textareaElement.disabled = false;
+    
+    // set textarea to display="none" to get cascaded styles via getComputedStyle
+    textareaElement.style.display = "none";
+    
     // --------- iframe styles (has to be set before editor styles, otherwise IE9 sets wrong fontFamily on blurStylesHost) ---------
     dom.copyStyles(BOX_FORMATTING).from(textareaElement).to(this.iframe).andTo(this.blurStylesHost);
-  
+    
     // --------- editor styles ---------
     dom.copyStyles(TEXT_FORMATTING).from(textareaElement).to(this.element).andTo(this.blurStylesHost);
-  
+    
     // --------- apply standard rules ---------
     dom.insertCSS(ADDITIONAL_CSS_RULES).into(this.element.ownerDocument);
-  
+    
+    // --------- :disabled styles ---------
+    textareaElement.disabled = true;
+    dom.copyStyles(BOX_FORMATTING).from(textareaElement).to(this.disabledStylesHost);
+    dom.copyStyles(TEXT_FORMATTING).from(textareaElement).to(this.disabledStylesHost);
+    textareaElement.disabled = originalDisabled;
+    
     // --------- :focus styles ---------
     focusWithoutScrolling(textareaElement);
     dom.copyStyles(BOX_FORMATTING).from(textareaElement).to(this.focusStylesHost);
     dom.copyStyles(TEXT_FORMATTING).from(textareaElement).to(this.focusStylesHost);
-  
+    
+    // reset textarea
+    textareaElement.style.display = originalDisplayValue;
+    
+    dom.copyStyles(["display"]).from(textareaElement).to(this.iframe);
+    
     // Make sure that we don't change the display style of the iframe when copying styles oblur/onfocus
     // this is needed for when the change_view event is fired where the iframe is hidden and then
     // the blur event fires and re-displays it
     var boxFormattingStyles = wysihtml5.lang.array(BOX_FORMATTING).without(["display"]);
-  
+    
     // --------- restore focus ---------
     if (originalActiveElement) {
       originalActiveElement.focus();
     } else {
       textareaElement.blur();
     }
-  
+    
     // --------- restore placeholder ---------
     if (hasPlaceholder) {
       textareaElement.setAttribute("placeholder", originalPlaceholder);
     }
-  
-    // When copying styles, we only get the computed style which is never returned in percent unit
-    // Therefore we've to recalculate style onresize
-    if (!wysihtml5.browser.hasCurrentStyleProperty()) {
-      var winObserver = dom.observe(win, "resize", function() {
-        // Remove event listener if composer doesn't exist anymore
-        if (!dom.contains(document.documentElement, that.iframe)) {
-          winObserver.stop();
-          return;
-        }
-        var originalTextareaDisplayStyle = dom.getStyle("display").from(textareaElement),
-            originalComposerDisplayStyle = dom.getStyle("display").from(that.iframe);
-        textareaElement.style.display = "";
-        that.iframe.style.display = "none";
-        dom.copyStyles(RESIZE_STYLE)
-          .from(textareaElement)
-          .to(that.iframe)
-          .andTo(that.focusStylesHost)
-          .andTo(that.blurStylesHost);
-        that.iframe.style.display = originalComposerDisplayStyle;
-        textareaElement.style.display = originalTextareaDisplayStyle;
-      });
-    }
-  
+    
     // --------- Sync focus/blur styles ---------
     this.parent.observe("focus:composer", function() {
       dom.copyStyles(boxFormattingStyles) .from(that.focusStylesHost).to(that.iframe);
       dom.copyStyles(TEXT_FORMATTING)     .from(that.focusStylesHost).to(that.element);
     });
-
+    
     this.parent.observe("blur:composer", function() {
       dom.copyStyles(boxFormattingStyles) .from(that.blurStylesHost).to(that.iframe);
       dom.copyStyles(TEXT_FORMATTING)     .from(that.blurStylesHost).to(that.element);
     });
-  
+    
+    this.parent.observe("disable:composer", function() {
+      dom.copyStyles(boxFormattingStyles) .from(that.disabledStylesHost).to(that.iframe);
+      dom.copyStyles(TEXT_FORMATTING)     .from(that.disabledStylesHost).to(that.element);
+    });
+    
+    this.parent.observe("enable:composer", function() {
+      dom.copyStyles(boxFormattingStyles) .from(that.blurStylesHost).to(that.iframe);
+      dom.copyStyles(TEXT_FORMATTING)     .from(that.blurStylesHost).to(that.element);
+    });
+    
     return this;
   };
 })(wysihtml5);/**
@@ -8498,7 +8513,6 @@ wysihtml5.views.View = Base.extend(
       }
     }, 250);
 
-
     // --------- Focus & blur logic ---------
     dom.observe(focusBlurElement, "focus", function() {
       that.parent.fire("focus").fire("focus:composer");
@@ -8514,26 +8528,6 @@ wysihtml5.views.View = Base.extend(
       }
       that.parent.fire("blur").fire("blur:composer");
     });
-    
-    if (browser.isIos()) {
-      // When on iPad/iPhone/IPod after clicking outside of editor, the editor loses focus
-      // but the UI still acts as if the editor has focus (blinking caret and onscreen keyboard visible)
-      // We prevent that by focusing a temporary input element which immediately loses focus
-      dom.observe(element, "blur", function() {
-        var input = element.ownerDocument.createElement("input"),
-            originalScrollTop = document.documentElement.scrollTop || document.body.scrollTop,
-            originalScrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft;
-        try {
-          that.selection.insertNode(input);
-        } catch(e) {
-          element.appendChild(input);
-        }
-        input.focus();
-        input.parentNode.removeChild(input);
-        
-        window.scrollTo(originalScrollLeft, originalScrollTop);
-      });
-    }
 
     // --------- Drag & Drop logic ---------
     dom.observe(element, "dragenter", function() {
@@ -9434,6 +9428,8 @@ wysihtml5.views.Textarea = wysihtml5.views.View.extend(
  *    redo:composer
  *    beforecommand:composer
  *    aftercommand:composer
+ *    enable:composer
+ *    disable:composer
  *    change_view
  */
 (function(wysihtml5) {
@@ -9576,13 +9572,6 @@ wysihtml5.views.Textarea = wysihtml5.views.View.extend(
           wysihtml5.quirks.cleanPastedHTML(that.composer.element);
           that.parse(that.composer.element);
         }, keepScrollPosition);
-      });
-      
-      this.observe("paste:textarea", function() {
-        var value   = this.textarea.getValue(),
-            newValue;
-        newValue = this.parse(value);
-        this.textarea.setValue(newValue);
       });
     }
   });
